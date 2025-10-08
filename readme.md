@@ -4,17 +4,15 @@ A Git pre-commit hook that automatically syncs translation keys across all langu
 
 ## Installation Steps
 
-### 1. Save the hook file
+### 1. Copy the hook script to your Laravel project
 
 ```bash
 # Navigate to your Laravel project
 cd your-laravel-project
 
-# Create or edit the pre-commit hook
-vi .git/hooks/pre-commit
+# Copy the translate-all-modified-keys script to git hooks directory
+cp /path/to/translate-all-modified-keys .git/hooks/pre-commit
 ```
-
-Paste the script from the artifact above.
 
 ### 2. Make it executable
 
@@ -27,6 +25,12 @@ chmod +x .git/hooks/pre-commit
 ```bash
 npm install -g @anthropic-ai/claude-code
 ```
+
+## Compatibility
+
+- **macOS**: Fully supported (BSD sed compatible)
+- **Linux**: Fully supported (not tested!)
+- **Windows**: Use Git Bash or WSL (not tested!)
 
 ## How It Works
 
@@ -44,11 +48,15 @@ The hook performs these steps:
 
 ## Customization Options
 
-### Manual approval mode
-Remove the `--yes` flag from the claude command if you want to review changes before they're applied:
+### Permission prompts
+By default, the hook uses `--dangerously-skip-permissions` to avoid blocking on permission prompts during the commit. Remove this flag if you want to review file operations:
 
 ```bash
-claude code "$PROMPT"  # Remove --yes for manual approval
+# Change this line in the script (line 137):
+claude --dangerously-skip-permissions -p "$PROMPT"
+
+# To this:
+claude -p "$PROMPT"
 ```
 
 ### Skip the hook

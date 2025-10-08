@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Laravel Translation Sync Pre-commit Hook
-# This hook uses Claude Code CLI to detect translation changes and sync them across all languages
+# Detects changes to existing translation keys and translates them to all other languages
 
 set -e
 
@@ -56,42 +56,94 @@ echo "$LANGUAGES" | while read lang; do
     echo "  - $lang"
 done
 
-# Create a prompt for Claude Code
-PROMPT="I have made changes to Laravel translation files. Please analyze the following:
+# Analyze the git diff to extract modified translation keys
+echo -e "${BLUE}🔬 Analyzing changes to detect modified keys...${NC}"
 
-1. Check the git diff for translation files in the $LANG_DIR directory
-2. Identify which translation keys were added, modified, or removed
-3. Compare all language directories to ensure ALL languages have the same translation keys
-4. For any missing translations in other languages:
-   - Add the missing keys to those language files
-   - Translate the English values to the target language
-   - Maintain the exact same file structure and organization
+# Create a temporary file to store the analysis
+TEMP_ANALYSIS=$(mktemp)
 
-Languages to check: $(echo $LANGUAGES | tr '\n' ', ')
+# For each changed translation file, extract the diff
+for file in $TRANSLATION_CHANGES; do
+    if git diff --cached "$file" > /dev/null 2>&1; then
+        echo "=== FILE: $file ===" >> "$TEMP_ANALYSIS"
+        git diff --cached "$file" >> "$TEMP_ANALYSIS"
+        echo "" >> "$TEMP_ANALYSIS"
+    fi
+done
 
-Please sync all translation files to have the same structure and keys. Make sure:
-- All files have proper PHP syntax
-- Arrays are properly formatted
-- File structure is consistent across all languages
-- New keys added to any language are added to all languages
+# Check if there are actual content changes
+if [ ! -s "$TEMP_ANALYSIS" ]; then
+    echo -e "${GREEN}✓ No content changes in translation files. Proceeding with commit.${NC}"
+    rm -f "$TEMP_ANALYSIS"
+    exit 0
+fi
 
-After making changes, show me a summary of what was synced."
+# Extract language from changed files to determine source language
+SOURCE_LANG=$(echo "$TRANSLATION_CHANGES" | head -1 | sed -E 's|.*/([a-z]{2})/.*|\1|')
+
+# Build detailed prompt for Claude
+PROMPT="I need you to analyze Laravel translation file changes and sync them across all languages.
+
+📋 CONTEXT:
+- Translation directory: $LANG_DIR
+- Languages available: $(echo $LANGUAGES | tr '\n' ', ')
+- Source language (being modified): $SOURCE_LANG
+- Number of files changed: $(echo "$TRANSLATION_CHANGES" | wc -l)
+
+🎯 YOUR TASK:
+
+1. ANALYZE THE DIFF:
+   - Read the git diff output I've captured below
+   - Identify which translation keys had their VALUES modified (look for lines with '-' and '+')
+   - Note any new keys added or keys removed
+   - Extract the file structure (e.g., messages.php, auth.php, etc.)
+
+2. FOR EACH MODIFIED OR NEW KEY:
+   - Find the corresponding file in ALL other language directories
+   - Update the translation value for that key in each language
+   - Translate the new value from $SOURCE_LANG to the target language
+   - Maintain the exact same array structure, formatting, and PHP syntax
+
+3. IMPORTANT RULES:
+   - Only modify the VALUES of keys, never change the key names
+   - Preserve PHP array formatting (spacing, indentation, quotes)
+   - Ensure all languages have the same set of keys after sync
+   - If a key was removed from $SOURCE_LANG, remove it from all languages
+   - If a key's value changed in $SOURCE_LANG, translate the new value to all languages
+   - Maintain proper PHP syntax in all files
+   - Keep comments if they exist
+
+4. OUTPUT:
+   After completing the sync, provide a summary showing:
+   - Which keys were modified/added/removed
+   - Which languages were updated
+   - Any issues encountered
+
+📊 GIT DIFF OUTPUT:
+\`\`\`diff
+$(cat "$TEMP_ANALYSIS")
+\`\`\`
+
+Please proceed to analyze and sync the translations now."
+
+# Clean up temp file
+rm -f "$TEMP_ANALYSIS"
 
 echo -e "${BLUE}🤖 Running Claude Code to analyze and sync translations...${NC}"
 echo ""
 
 # Execute Claude Code with the prompt
 # Using --yes flag to auto-approve changes (remove if you want manual approval)
-claude code "$PROMPT" --yes
+claude --dangerously-skip-permissions -p "$PROMPT"
 
 # Check if Claude Code execution was successful
 if [ $? -eq 0 ]; then
     echo ""
     echo -e "${GREEN}✓ Translation sync completed successfully!${NC}"
-    
+
     # Stage any new translation changes that Claude made
     git add "$LANG_DIR"
-    
+
     echo -e "${GREEN}✓ Updated translation files have been staged.${NC}"
     echo -e "${BLUE}📋 Proceeding with commit...${NC}"
     exit 0
@@ -101,3 +153,4 @@ else
     echo -e "${YELLOW}You can bypass this hook with: git commit --no-verify${NC}"
     exit 1
 fi
+
