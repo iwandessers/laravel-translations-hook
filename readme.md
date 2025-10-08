@@ -2,9 +2,43 @@
 
 A Git pre-commit hook that automatically syncs translation keys across all language files in your Laravel project using Claude Code.
 
-## Installation Steps
+## Installation
 
-### 1. Copy the hook script to your Laravel project
+### Option 1: Using pre-commit framework (Recommended)
+
+1. Install [pre-commit](https://pre-commit.com/):
+
+```bash
+pip install pre-commit
+# or
+brew install pre-commit
+```
+
+2. Add to your `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/iwandessers/laravel-translations-hook
+    rev: v1.0.0  # Use the latest release tag
+    hooks:
+      - id: laravel-translations
+```
+
+3. Install the hook:
+
+```bash
+pre-commit install
+```
+
+4. Install Claude Code CLI (if not already installed):
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+### Option 2: Manual installation
+
+1. Copy the hook script to your Laravel project:
 
 ```bash
 # Navigate to your Laravel project
@@ -14,13 +48,13 @@ cd your-laravel-project
 cp /path/to/translate-all-modified-keys .git/hooks/pre-commit
 ```
 
-### 2. Make it executable
+2. Make it executable:
 
 ```bash
 chmod +x .git/hooks/pre-commit
 ```
 
-### 3. Install Claude Code CLI (if not already installed)
+3. Install Claude Code CLI (if not already installed):
 
 ```bash
 npm install -g @anthropic-ai/claude-code

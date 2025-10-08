@@ -1,0 +1,6 @@
+- id: laravel-translations
+  name: Check Laravel translation keys
+  entry: translate-all-modified-keys
+  language: script
+  files: '\.php$'
+  pass_filenames: true
