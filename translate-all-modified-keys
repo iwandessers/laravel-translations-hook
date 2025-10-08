@@ -1,0 +1,103 @@
+#!/bin/bash
+
+# Laravel Translation Sync Pre-commit Hook
+# This hook uses Claude Code CLI to detect translation changes and sync them across all languages
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}🔍 Checking for translation changes...${NC}"
+
+# Get the list of staged files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+# Check if any translation files are in the staged changes
+TRANSLATION_CHANGES=$(echo "$STAGED_FILES" | grep -E '^lang/.*\.php$|^resources/lang/.*\.php$' || true)
+
+if [ -z "$TRANSLATION_CHANGES" ]; then
+    echo -e "${GREEN}✓ No translation changes detected. Proceeding with commit.${NC}"
+    exit 0
+fi
+
+echo -e "${YELLOW}📝 Translation changes detected:${NC}"
+echo "$TRANSLATION_CHANGES" | while read file; do
+    echo "  - $file"
+done
+
+# Check if Claude Code CLI is installed
+if ! command -v claude &> /dev/null; then
+    echo -e "${RED}✗ Claude Code CLI not found. Please install it first.${NC}"
+    echo -e "${YELLOW}  Install with: npm install -g @anthropic-ai/claude-code${NC}"
+    exit 1
+fi
+
+# Determine the lang directory path
+if [ -d "lang" ]; then
+    LANG_DIR="lang"
+elif [ -d "resources/lang" ]; then
+    LANG_DIR="resources/lang"
+else
+    echo -e "${RED}✗ Could not find Laravel lang directory.${NC}"
+    exit 1
+fi
+
+# Get all language directories
+LANGUAGES=$(find "$LANG_DIR" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;)
+LANG_COUNT=$(echo "$LANGUAGES" | wc -l)
+
+echo -e "${BLUE}🌍 Found $LANG_COUNT language(s):${NC}"
+echo "$LANGUAGES" | while read lang; do
+    echo "  - $lang"
+done
+
+# Create a prompt for Claude Code
+PROMPT="I have made changes to Laravel translation files. Please analyze the following:
+
+1. Check the git diff for translation files in the $LANG_DIR directory
+2. Identify which translation keys were added, modified, or removed
+3. Compare all language directories to ensure ALL languages have the same translation keys
+4. For any missing translations in other languages:
+   - Add the missing keys to those language files
+   - Translate the English values to the target language
+   - Maintain the exact same file structure and organization
+
+Languages to check: $(echo $LANGUAGES | tr '\n' ', ')
+
+Please sync all translation files to have the same structure and keys. Make sure:
+- All files have proper PHP syntax
+- Arrays are properly formatted
+- File structure is consistent across all languages
+- New keys added to any language are added to all languages
+
+After making changes, show me a summary of what was synced."
+
+echo -e "${BLUE}🤖 Running Claude Code to analyze and sync translations...${NC}"
+echo ""
+
+# Execute Claude Code with the prompt
+# Using --yes flag to auto-approve changes (remove if you want manual approval)
+claude code "$PROMPT" --yes
+
+# Check if Claude Code execution was successful
+if [ $? -eq 0 ]; then
+    echo ""
+    echo -e "${GREEN}✓ Translation sync completed successfully!${NC}"
+    
+    # Stage any new translation changes that Claude made
+    git add "$LANG_DIR"
+    
+    echo -e "${GREEN}✓ Updated translation files have been staged.${NC}"
+    echo -e "${BLUE}📋 Proceeding with commit...${NC}"
+    exit 0
+else
+    echo ""
+    echo -e "${RED}✗ Translation sync failed. Please review the changes manually.${NC}"
+    echo -e "${YELLOW}You can bypass this hook with: git commit --no-verify${NC}"
+    exit 1
+fi
