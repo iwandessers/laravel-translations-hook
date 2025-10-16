@@ -111,6 +111,7 @@ PROMPT="I need you to analyze Laravel translation file changes and sync them acr
    - If a key was removed from $SOURCE_LANG, remove it from all languages
    - If a key's value changed in $SOURCE_LANG, translate the new value to all languages
    - Maintain proper PHP syntax in all files
+   - Ensure ant changed lang files contain valid PHP, paying special attention to the use of quotes: ', `, and "
    - Keep comments if they exist
 
 4. OUTPUT:
